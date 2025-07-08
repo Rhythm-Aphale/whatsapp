@@ -17,6 +17,7 @@ import {
   PopoverTrigger 
 } from '@/components/ui/popover';
 import { WebRTCManager } from '@/lib/webrtc';
+import { useChatStore } from '@/lib/store';
 
 export function MessageInput() {
   const [message, setMessage] = useState('');
@@ -24,21 +25,24 @@ export function MessageInput() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { selectedUser } = useChatStore();
 
   const webrtcManager = WebRTCManager.getInstance();
 
   const handleSendMessage = () => {
+    if (!selectedUser) return;
+
     if (selectedFile) {
       handleFileSend();
     } else if (message.trim()) {
-      webrtcManager.sendMessage(message.trim());
+      webrtcManager.sendMessage(message.trim(), 'text', undefined, selectedUser.id);
       setMessage('');
       handleStopTyping();
     }
   };
 
   const handleFileSend = () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !selectedUser) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -49,7 +53,7 @@ export function MessageInput() {
         url: e.target?.result as string
       };
 
-      webrtcManager.sendMessage(selectedFile.name, 'file', fileData);
+      webrtcManager.sendMessage(selectedFile.name, 'file', fileData, selectedUser.id);
       setSelectedFile(null);
     };
     reader.readAsDataURL(selectedFile);
@@ -68,9 +72,11 @@ export function MessageInput() {
   };
 
   const handleTyping = () => {
+    if (!selectedUser) return;
+
     if (!isTyping) {
       setIsTyping(true);
-      webrtcManager.sendTypingStatus(true);
+      webrtcManager.sendTypingStatus(true, selectedUser.id);
     }
 
     if (typingTimeoutRef.current) {
@@ -83,9 +89,9 @@ export function MessageInput() {
   };
 
   const handleStopTyping = () => {
-    if (isTyping) {
+    if (isTyping && selectedUser) {
       setIsTyping(false);
-      webrtcManager.sendTypingStatus(false);
+      webrtcManager.sendTypingStatus(false, selectedUser.id);
     }
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -108,6 +114,8 @@ export function MessageInput() {
     setMessage(prev => prev + emoji.emoji);
     inputRef.current?.focus();
   };
+
+  if (!selectedUser) return null;
 
   return (
     <div {...getRootProps()} className="border-t border-gray-200 bg-white">

@@ -1,4 +1,5 @@
 import { useChatStore } from './store';
+import { v4 as uuidv4 } from 'uuid';
 
 export class WebRTCManager {
   private static instance: WebRTCManager;
@@ -20,7 +21,6 @@ export class WebRTCManager {
   async connectToSignalingServer(serverUrl: string, username: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        // Clean up existing connection
         if (this.ws) {
           this.ws.close();
           this.ws = null;
@@ -30,14 +30,13 @@ export class WebRTCManager {
         this.ws = new WebSocket(serverUrl);
         const { setWebSocket, setConnected, setCurrentUser } = useChatStore.getState();
 
-        // Set up connection timeout
         const connectionTimeout = setTimeout(() => {
           if (this.ws?.readyState !== WebSocket.OPEN) {
             console.error('Connection timeout');
             this.ws?.close();
             reject(new Error('Connection timeout'));
           }
-        }, 15000); // 15 second timeout for slow connections
+        }, 15000);
 
         this.ws.onopen = () => {
           console.log('Connected to signaling server');
@@ -47,7 +46,6 @@ export class WebRTCManager {
           setWebSocket(this.ws!);
           setConnected(true);
           
-          // Join the chat - wait a bit to ensure connection is stable
           setTimeout(() => {
             if (this.ws?.readyState === WebSocket.OPEN) {
               this.ws!.send(JSON.stringify({
@@ -74,12 +72,10 @@ export class WebRTCManager {
           clearTimeout(connectionTimeout);
           setConnected(false);
           
-          // Don't reconnect if it was a manual disconnect
           if (event.code !== 1000) {
             this.handleReconnect(serverUrl, username);
           }
           
-          // Only reject if we haven't resolved yet
           if (this.ws?.readyState !== WebSocket.OPEN) {
             reject(new Error(`Connection closed: ${event.code} ${event.reason}`));
           }
@@ -133,17 +129,17 @@ export class WebRTCManager {
         break;
 
       case 'message':
-        if (message.userId !== this.currentUserId) {
-          addMessage({
-            id: `${message.userId}-${message.timestamp}`,
-            senderId: message.userId,
-            senderName: message.username,
-            content: message.data.content,
-            timestamp: message.timestamp,
-            type: message.data.type || 'text',
-            fileData: message.data.fileData
-          });
-        }
+        addMessage({
+          id: `${message.userId}-${message.timestamp}`,
+          messageId: message.messageId,
+          senderId: message.userId,
+          senderName: message.username,
+          content: message.data.content,
+          timestamp: message.timestamp,
+          type: message.data.type || 'text',
+          fileData: message.data.fileData,
+          targetUserId: message.targetUserId
+        });
         break;
 
       case 'typing':
@@ -171,12 +167,10 @@ export class WebRTCManager {
   }
 
   private async handleWebRTCSignaling(message: any) {
-    // WebRTC signaling logic would go here
-    // For now, we'll use the WebSocket for messaging
     console.log('WebRTC signaling:', message);
   }
 
-  sendMessage(content: string, type: 'text' | 'file' = 'text', fileData?: any) {
+  sendMessage(content: string, type: 'text' | 'file' = 'text', fileData?: any, targetUserId?: string) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('WebSocket not connected');
       return false;
@@ -188,10 +182,16 @@ export class WebRTCManager {
       return false;
     }
 
+    const messageId = uuidv4(); // Generate unique message ID
+    const timestamp = Date.now();
+
     const message = {
       type: 'message',
       userId: this.currentUserId,
       username: currentUser.username,
+      targetUserId,
+      messageId, // Include messageId
+      timestamp,
       data: {
         content,
         type,
@@ -204,13 +204,15 @@ export class WebRTCManager {
 
       // Add message to local state
       addMessage({
-        id: `${this.currentUserId}-${Date.now()}`,
+        id: `${this.currentUserId}-${timestamp}`,
+        messageId,
         senderId: this.currentUserId!,
         senderName: currentUser.username,
         content,
-        timestamp: Date.now(),
+        timestamp,
         type,
-        fileData
+        fileData,
+        targetUserId
       });
 
       return true;
@@ -220,7 +222,7 @@ export class WebRTCManager {
     }
   }
 
-  sendTypingStatus(isTyping: boolean) {
+  sendTypingStatus(isTyping: boolean, targetUserId?: string) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
     const { currentUser } = useChatStore.getState();
@@ -230,7 +232,8 @@ export class WebRTCManager {
       this.ws.send(JSON.stringify({
         type: isTyping ? 'typing' : 'stop-typing',
         userId: this.currentUserId,
-        username: currentUser.username
+        username: currentUser.username,
+        targetUserId
       }));
     } catch (error) {
       console.error('Failed to send typing status:', error);
@@ -242,10 +245,10 @@ export class WebRTCManager {
   }
 
   disconnect() {
-    this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
+    this.reconnectAttempts = this.maxReconnectAttempts;
     
     if (this.ws) {
-      this.ws.close(1000, 'Manual disconnect'); // Normal closure
+      this.ws.close(1000, 'Manual disconnect');
       this.ws = null;
     }
     this.currentUserId = null;

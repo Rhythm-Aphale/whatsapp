@@ -8,6 +8,7 @@ interface User {
 
 interface Message {
   id: string;
+  messageId: string; // New field for unique message ID
   senderId: string;
   senderName: string;
   content: string;
@@ -19,27 +20,23 @@ interface Message {
     type: string;
     url: string;
   };
+  targetUserId?: string;
 }
 
 interface ChatState {
-  // User state
   currentUser: User | null;
   users: User[];
   isConnected: boolean;
-  
-  // Chat state
+  selectedUser: User | null;
   messages: Message[];
   typingUsers: Set<string>;
-  
-  // WebSocket and WebRTC
   ws: WebSocket | null;
   peerConnections: Map<string, RTCPeerConnection>;
   dataChannels: Map<string, RTCDataChannel>;
-  
-  // Actions
   setCurrentUser: (user: User) => void;
   setUsers: (users: User[]) => void;
   setConnected: (connected: boolean) => void;
+  setSelectedUser: (user: User | null) => void;
   addMessage: (message: Message) => void;
   setTypingUsers: (users: Set<string>) => void;
   setWebSocket: (ws: WebSocket) => void;
@@ -53,17 +50,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentUser: null,
   users: [],
   isConnected: false,
+  selectedUser: null,
   messages: [],
   typingUsers: new Set(),
   ws: null,
   peerConnections: new Map(),
   dataChannels: new Map(),
-  
   setCurrentUser: (user) => set({ currentUser: user }),
   setUsers: (users) => set({ users }),
   setConnected: (connected) => set({ isConnected: connected }),
-  addMessage: (message) => set(state => ({ 
-    messages: [...state.messages, message].sort((a, b) => a.timestamp - b.timestamp)
+  setSelectedUser: (user) => set({ selectedUser: user }),
+  addMessage: (message) => set(state => ({
+    messages: [...state.messages.filter(m => m.messageId !== message.messageId), message].sort((a, b) => a.timestamp - b.timestamp)
   })),
   setTypingUsers: (users) => set({ typingUsers: users }),
   setWebSocket: (ws) => set({ ws }),
@@ -80,14 +78,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removePeerConnection: (userId) => {
     const connections = get().peerConnections;
     const channels = get().dataChannels;
-    
     connections.get(userId)?.close();
     channels.get(userId)?.close();
-    
     connections.delete(userId);
     channels.delete(userId);
-    
-    set({ 
+    set({
       peerConnections: new Map(connections),
       dataChannels: new Map(channels)
     });
@@ -96,6 +91,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     currentUser: null,
     users: [],
     isConnected: false,
+    selectedUser: null,
     messages: [],
     typingUsers: new Set(),
     ws: null,

@@ -5,7 +5,7 @@ import { Users, Circle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function UserList() {
-  const { users, currentUser } = useChatStore();
+  const { users, currentUser, selectedUser, setSelectedUser } = useChatStore();
 
   const otherUsers = users.filter(user => user.id !== currentUser?.id);
 
@@ -23,7 +23,12 @@ export function UserList() {
           {otherUsers.map((user) => (
             <div
               key={user.id}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+              onClick={() => setSelectedUser(user)}
+              className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                selectedUser?.id === user.id
+                  ? 'bg-green-100'
+                  : 'hover:bg-gray-50'
+              }`}
             >
               <div className="relative">
                 <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">

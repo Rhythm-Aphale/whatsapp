@@ -7,8 +7,8 @@ import { useChatStore } from '@/lib/store';
 import { MessageCircle } from 'lucide-react';
 
 export function ChatArea() {
-  const { users, currentUser } = useChatStore();
-  const otherUsers = users.filter(user => user.id !== currentUser?.id);
+  const { selectedUser, users } = useChatStore();
+  const otherUsers = users.filter(user => user.isOnline);
 
   return (
     <div className="flex-1 flex flex-col">
@@ -19,9 +19,11 @@ export function ChatArea() {
             <MessageCircle className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-semibold text-gray-800">Group Chat</h1>
+            <h1 className="font-semibold text-gray-800">
+              {selectedUser ? `Chat with ${selectedUser.username}` : 'Select a user to chat'}
+            </h1>
             <p className="text-sm text-gray-500">
-              {otherUsers.length} other user{otherUsers.length !== 1 ? 's' : ''} online
+              {otherUsers.length} user{otherUsers.length !== 1 ? 's' : ''} online
             </p>
           </div>
         </div>
@@ -30,8 +32,8 @@ export function ChatArea() {
       {/* Messages */}
       <div className="flex-1 flex flex-col min-h-0">
         <MessageList />
-        <TypingIndicator />
-        <MessageInput />
+        {selectedUser && <TypingIndicator />}
+        {selectedUser && <MessageInput />}
       </div>
     </div>
   );

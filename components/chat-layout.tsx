@@ -41,7 +41,7 @@ export function ChatLayout({ onLogout }: ChatLayoutProps) {
               onClick={onLogout}
               className="text-gray-500 hover:text-red-500"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className ="h-4 w-4" />
             </Button>
           </div>
         </div>
